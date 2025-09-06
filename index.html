@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mini Nest 2D — Single‑File</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121625; --panel2:#0e1322; --ink:#e8ecf1; --muted:#9aa4b2; --accent:#4da3ff; --accent2:#47e5a1;
+    --grid:#1a2035; --grid2:#232b45; --warn:#f5b145; --danger:#ff6b6b;
+    --ok:#46d19a; --sel:#7aa2ff44; --hud:#0e1628cc; --hud-border:#2a3a70;
+    --bar:#0f1426; --bar2:#0b1021; --stroke:#1e2335;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+  button,input,select,textarea{font:inherit}
+  .app{display:grid; grid-template-rows:48px 1fr 28px; height:100%}
+  header{display:flex; align-items:center; gap:10px; padding:0 10px; background:linear-gradient(180deg,var(--bar),var(--bar2)); border-bottom:1px solid #1b2140}
+  header .title{font-weight:700; letter-spacing:.3px; display:flex; align-items:center; gap:.6rem}
+  header .title .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+  header .spacer{flex:1}
+  header .btn{background:#0d1530;border:1px solid #1f2a55;color:var(--ink);padding:6px 10px;border-radius:10px;cursor:pointer}
+  header .btn:hover{background:#121c3f}
+
+  main{display:grid; grid-template-columns:320px 1fr 320px; gap:0; min-height:0}
+  aside{background:var(--panel); border-right:1px solid #1b2140; display:flex; flex-direction:column; min-width:0}
+  aside.right{border-right:none; border-left:1px solid #1b2140}
+  .section{padding:10px; border-bottom:1px solid #1b2140}
+  .section h3{margin:0 0 6px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
+  .section .row{display:flex; gap:8px; margin:6px 0; align-items:center}
+  .section .row > label{min-width:90px; color:var(--muted); font-size:12px}
+  .section input[type="number"], .section input[type="text"], .section select{width:100%; padding:6px 8px; border-radius:8px; border:1px solid #2a355f; background:#0d1327; color:var(--ink)}
+  .mini{font-size:12px; color:var(--muted)}
+
+  .parts{flex:1; overflow:auto}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{padding:6px 8px; border-bottom:1px solid #202a50; text-align:left}
+  th{position:sticky; top:0; background:#101735; z-index:1}
+  tr:hover{background:#0f1733}
+  .ghost{opacity:.6; font-style:italic}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; border:1px solid #2a355f; background:#0c142f; font-size:12px}
+
+  .viewport{position:relative; background:radial-gradient(800px 400px at 70% -10%, rgba(56,189,248,.12), transparent 60%),
+                               radial-gradient(600px 300px at -10% -10%, rgba(168,85,247,.10), transparent 60%)}
+  canvas{width:100%; height:100%; display:block; background:
+    linear-gradient(0deg, transparent 24%, var(--grid) 25%, var(--grid) 26%, transparent 27%, transparent 74%, var(--grid) 75%, var(--grid) 76%, transparent 77%),
+    linear-gradient(90deg, transparent 24%, var(--grid) 25%, var(--grid) 26%, transparent 27%, transparent 74%, var(--grid) 75%, var(--grid) 76%, transparent 77%);
+    background-size:48px 48px; border-left:1px solid #1b2140; border-right:1px solid #1b2140}
+  .overlay{position:absolute; inset:0; pointer-events:none}
+  .hud{position:absolute; left:10px; bottom:10px; background:var(--hud); border:1px solid var(--hud-border); border-radius:12px; padding:8px 10px; font-size:12px}
+
+  footer{display:flex; align-items:center; gap:12px; padding:0 10px; background:linear-gradient(180deg,var(--bar2),var(--bar)); border-top:1px solid #1b2140; font-size:12px; color:var(--muted)}
+  footer .kbd{padding:1px 6px; border:1px solid #2a355f; border-bottom-width:2px; border-radius:6px; background:#0d1327; color:#cfe1ff}
+  footer .right{margin-left:auto}
+
+  .btn-sm{background:#0d1530;border:1px solid #1f2a55;color:var(--ink);padding:4px 8px;border-radius:8px;cursor:pointer}
+  .btn-sm:hover{background:#121c3f}
+  .danger{color:#ff8d8d}
+  .ok{color:#71f1bd}
+  .warn{color:#f8d486}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title"><span class="dot"></span>Mini Nest 2D <span class="pill" title="Single‑file prototype">v0.1</span></div>
+    <button class="btn" id="btnNew">New</button>
+    <button class="btn" id="btnLoad">Load</button>
+    <button class="btn" id="btnSave">Save</button>
+    <span class="spacer"></span>
+    <button class="btn" id="btnNest">Run Nest</button>
+    <button class="btn" id="btnExportSVG">Export SVG</button>
+    <button class="btn" id="btnExportCSV">Export CSV</button>
+  </header>
+  <main>
+    <aside>
+      <div class="section">
+        <h3>Parts</h3>
+        <div class="row">
+          <button class="btn-sm" id="btnAddRect">+ Rectangle</button>
+          <button class="btn-sm" id="btnAddCircle">+ Circle</button>
+          <label class="btn-sm" style="cursor:pointer">Import CSV
+            <input id="csvInput" type="file" accept=".csv" style="display:none" />
+          </label>
+        </div>
+        <div class="mini">CSV format: name,width,height,qty,rot (rot=1 allows rotation)</div>
+      </div>
+      <div class="parts">
+        <table id="partsTable">
+          <thead>
+            <tr><th style="width:34px">#</th><th>Name</th><th>W</th><th>H</th><th>Qty</th><th>Rot</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="section">
+        <div class="row"><button class="btn-sm" id="btnClearParts">Clear Parts</button></div>
+      </div>
+    </aside>
+
+    <div class="viewport">
+      <canvas id="view"></canvas>
+      <div class="overlay">
+        <div class="hud" id="hud"></div>
+      </div>
+    </div>
+
+    <aside class="right">
+      <div class="section">
+        <h3>Sheet</h3>
+        <div class="row"><label>Width</label><input type="number" id="sheetW" value="3000" min="1"/></div>
+        <div class="row"><label>Height</label><input type="number" id="sheetH" value="1500" min="1"/></div>
+        <div class="row"><label>Margin</label><input type="number" id="sheetMargin" value="10" min="0"/></div>
+        <div class="row"><label>Kerf</label><input type="number" id="kerf" value="2" min="0" step="0.1"/></div>
+        <div class="row"><label>Grain lock</label>
+          <select id="grainLock">
+            <option value="none">None (free rotate)</option>
+            <option value="0">Lock 0°</option>
+            <option value="90">Lock 90°</option>
+          </select>
+        </div>
+      </div>
+      <div class="section">
+        <h3>Nesting</h3>
+        <div class="row"><label>Strategy</label>
+          <select id="strategy">
+            <option value="shelf">Shelf (simple, fast)</option>
+            <option value="bl">Bottom-Left (greedy)</option>
+          </select>
+        </div>
+        <div class="row"><label>Sort</label>
+          <select id="sortBy">
+            <option value="area">Area ↓</option>
+            <option value="h">Height ↓</option>
+            <option value="w">Width ↓</option>
+          </select>
+        </div>
+        <div class="row"><label>Rotation</label>
+          <select id="rotation">
+            <option value="90">0° / 90°</option>
+            <option value="0">Fixed (per‑part)</option>
+          </select>
+        </div>
+        <div class="row"><button class="btn-sm" id="btnClearPlacements">Clear Layout</button></div>
+        <div class="mini muted">Prototype note: polygons are approximated to their bounding boxes for placement. Visuals still show true shapes.</div>
+      </div>
+      <div class="section">
+        <h3>Project</h3>
+        <div class="row"><label class="btn-sm" style="cursor:pointer">Import DXF (beta)
+          <input id="dxfInput" type="file" accept=".dxf" style="display:none" />
+        </label>
+        <button class="btn-sm" id="btnAddDXFAsPart">Add DXF → Part</button></div>
+        <div class="mini warn">DXF beta: supports LWPOLYLINE (straight) only; arcs ignored.</div>
+      </div>
+    </aside>
+  </main>
+  <footer>
+    <div>Zoom: <span id="zoomLbl">100%</span></div>
+    <div>Sheets: <span id="sheetsLbl">1</span></div>
+    <div class="right">Pan: <span class="kbd">Space</span> + drag • Zoom: wheel • Reset: <span class="kbd">R</span></div>
+  </footer>
+</div>
+
+<script>
+// ------------------------------
+// Utility
+// ------------------------------
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+function download(filename, text){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'application/octet-stream'}));
+  a.download=filename; a.click(); URL.revokeObjectURL(a.href);
+}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+function uid(){return Math.random().toString(36).slice(2,9)}
+
+// ------------------------------
+// Data Models
+// ------------------------------
+class Part{ // rectangle/circle/polygon → placed as rect bbox
+  constructor({name,w,h,qty=1,rot=true,shape='rect',points=null}){
+    this.id=uid(); this.name=name||('P_'+this.id);
+    this.w=+w; this.h=+h; this.qty=+qty|0; this.rot=!!rot; this.shape=shape; this.points=points; // points: [[x,y],...]
+  }
+  area(){return this.w*this.h}
+}
+class Placement{
+  constructor({partId,x,y,w,h,rot=false,sheet=0}){Object.assign(this,{partId,x,y,w,h,rot,sheet});}
+}
+class Project{
+  constructor(){
+    this.sheet={w:3000,h:1500,margin:10,kerf:2,grain:'none'};
+    this.parts=[]; // Part[]
+    this.placements=[]; // Placement[]
+  }
+}
+
+// ------------------------------
+// State
+// ------------------------------
+const state={
+  proj:new Project(),
+  camera:{x:0,y:0,zoom:1},
+  dragging:false, last:{x:0,y:0},
+  sheetsCount:1,
+  dxfGeom:null,
+};
+
+// Seed with demo parts
+function seedDemo(){
+  const p=state.proj;
+  p.parts.push(new Part({name:'Bracket A', w:220, h:160, qty:6, rot:true}));
+  p.parts.push(new Part({name:'Gusset', w:140, h:140, qty:10, rot:true}));
+  p.parts.push(new Part({name:'Cover Plate', w:600, h:260, qty:4, rot:false}));
+  p.parts.push(new Part({name:'Ring Ø200', w:200, h:200, qty:2, rot:true, shape:'circle'}));
+}
+
+// ------------------------------
+// Rendering
+// ------------------------------
+const canvas=$('#view');
+const ctx=canvas.getContext('2d');
+function resizeCanvas(){
+  const dpr=window.devicePixelRatio||1; const r=canvas.getBoundingClientRect();
+  canvas.width=Math.max(1,Math.floor(r.width*dpr));
+  canvas.height=Math.max(1,Math.floor(r.height*dpr));
+  ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr);
+  draw();
+}
+window.addEventListener('resize',resizeCanvas);
+
+function worldToScreen(x,y){
+  const m=state.proj.sheet.margin; const kerf=state.proj.sheet.kerf;
+  const zx=state.camera.zoom, zy=zx; const ox=state.camera.x, oy=state.camera.y;
+  const r=canvas.getBoundingClientRect(); const cx=r.width/2, cy=r.height/2;
+  return {x: cx + (x-ox)*zx, y: cy + (y-oy)*zy};
+}
+function screenToWorld(x,y){
+  const zx=state.camera.zoom; const r=canvas.getBoundingClientRect();
+  const cx=r.width/2, cy=r.height/2; const ox=state.camera.x, oy=state.camera.y;
+  return {x: ox + (x-cx)/zx, y: oy + (y-cy)/zx};
+}
+
+function draw(){
+  const r=canvas.getBoundingClientRect(); const w=r.width, h=r.height;
+  ctx.clearRect(0,0,w,h);
+
+  // Draw sheets tiled horizontally if multiple
+  const S=state.proj.sheet; const margin=S.margin; const kerf=S.kerf;
+  const sheetGap=80; // screen gap between sheets
+  const count=state.sheetsCount; $('#sheetsLbl').textContent=String(count);
+
+  for(let s=0;s<count;s++){
+    const sheetOriginX = s*(S.w + sheetGap);
+    drawSheet(sheetOriginX, 0, S.w, S.h, s);
+  }
+
+  // HUD
+  const placed=state.proj.placements.length;
+  const totalParts=state.proj.parts.reduce((a,p)=>a+p.qty,0);
+  $('#hud').innerHTML=`<div><b>${placed}</b> placements / <b>${totalParts}</b> parts</div>
+  <div class="muted">Kerf: ${S.kerf} • Margin: ${S.margin} • Strategy: ${$('#strategy').value}</div>`;
+}
+
+function drawSheet(wx, wy, sw, sh, sheetIndex){
+  const pad=24; // screen border
+  // Convert world to screen via camera
+  const sTL=worldToScreen(wx, wy);
+  const sBR=worldToScreen(wx+sw, wy+sh);
+  const x=sTL.x, y=sTL.y, W=sBR.x-sTL.x, H=sBR.y-sTL.y;
+  // Board
+  ctx.save();
+  ctx.fillStyle='#0a1125'; ctx.strokeStyle='#243064'; ctx.lineWidth=2;
+  ctx.fillRect(x,y,W,H); ctx.strokeRect(x,y,W,H);
+  // Rulers
+  ctx.fillStyle='#121b3a'; ctx.fillRect(x,y-18,W,18); ctx.fillRect(x-38,y,38,H);
+  ctx.fillStyle='#6ba2ff'; ctx.font='11px system-ui'; ctx.textBaseline='middle';
+  for(let ix=0; ix<=sw; ix+=250){ const p=worldToScreen(wx+ix, wy); ctx.fillText(String(ix), p.x-6, y-9); }
+  for(let iy=0; iy<=sh; iy+=250){ const p=worldToScreen(wx, wy+iy); ctx.save(); ctx.translate(x-8, p.y); ctx.rotate(-Math.PI/2); ctx.fillText(String(iy), 0, 0); ctx.restore(); }
+
+  // Placements on this sheet
+  const kerf=state.proj.sheet.kerf; const margin=state.proj.sheet.margin;
+  for(const pl of state.proj.placements.filter(p=>p.sheet===sheetIndex)){
+    const part=state.proj.parts.find(pp=>pp.id===pl.partId); if(!part) continue;
+    const px=wx + margin + pl.x; const py=wy + margin + pl.y;
+    const pw=pl.w; const ph=pl.h;
+    const A=worldToScreen(px, py), B=worldToScreen(px+pw, py+ph);
+    const sx=A.x, sy=A.y, sW=B.x-A.x, sH=B.y-A.y;
+
+    // body
+    ctx.fillStyle='#14214a'; ctx.strokeStyle='#6ba2ff'; ctx.lineWidth=1.5;
+    ctx.fillRect(sx,sy,sW,sH); ctx.strokeRect(sx,sy,sW,sH);
+    // label
+    ctx.fillStyle='#bcd7ff'; ctx.font='12px system-ui'; ctx.textBaseline='top';
+    ctx.fillText(part.name, sx+6, sy+4);
+  }
+
+  // Outline
+  ctx.strokeStyle='#33407a'; ctx.strokeRect(x,y,W,H);
+  ctx.restore();
+}
+
+// ------------------------------
+// Interaction: camera
+// ------------------------------
+function resetView(){ state.camera={x: state.proj.sheet.w/2, y: state.proj.sheet.h/2, zoom: Math.min(canvas.clientWidth/(state.proj.sheet.w*1.4), canvas.clientHeight/(state.proj.sheet.h*1.4))}; updateZoomLbl(); draw(); }
+function updateZoomLbl(){ $('#zoomLbl').textContent=Math.round(state.camera.zoom*100)+'%'; }
+canvas.addEventListener('wheel', (e)=>{
+  e.preventDefault(); const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top; const before=screenToWorld(e.clientX, e.clientY);
+  const k=Math.exp((e.deltaY>0?-1:1)*0.1); state.camera.zoom=clamp(state.camera.zoom*k, 0.05, 8);
+  const after=screenToWorld(e.clientX, e.clientY);
+  state.camera.x += before.x-after.x; state.camera.y += before.y-after.y; updateZoomLbl(); draw();
+},{passive:false});
+
+let panMode=false; // space key
+window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){panMode=true; document.body.style.cursor='grab';} if(e.key==='r' || e.key==='R'){resetView();} });
+window.addEventListener('keyup', (e)=>{ if(e.code==='Space'){panMode=false; document.body.style.cursor='default';} });
+canvas.addEventListener('pointerdown', (e)=>{ if(!panMode) return; state.dragging=true; state.last.x=e.clientX; state.last.y=e.clientY; document.body.style.cursor='grabbing'; });
+window.addEventListener('pointermove', (e)=>{ if(!state.dragging) return; const dx=(e.clientX-state.last.x)/state.camera.zoom; const dy=(e.clientY-state.last.y)/state.camera.zoom; state.camera.x-=dx; state.camera.y-=dy; state.last.x=e.clientX; state.last.y=e.clientY; draw(); });
+window.addEventListener('pointerup', ()=>{ state.dragging=false; document.body.style.cursor=panMode?'grab':'default'; });
+
+// ------------------------------
+// Parts Table UI
+// ------------------------------
+function renderParts(){
+  const tbody=$('#partsTable tbody'); tbody.innerHTML='';
+  state.proj.parts.forEach((p,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}</td>
+      <td contenteditable data-key="name">${p.name}</td>
+      <td contenteditable data-key="w">${p.w}</td>
+      <td contenteditable data-key="h">${p.h}</td>
+      <td contenteditable data-key="qty">${p.qty}</td>
+      <td><input type="checkbox" data-key="rot" ${p.rot?'checked':''}></td>
+      <td><button class="btn-sm danger" data-action="del">Del</button></td>`;
+    tr.addEventListener('input',(e)=>{ const key=e.target.dataset.key; if(!key) return; let val=e.target.textContent.trim(); if(key==='name') p[key]=val; else p[key]=+val||0; });
+    tr.addEventListener('change',(e)=>{ if(e.target.dataset.key==='rot') p.rot=e.target.checked; });
+    tr.querySelector('[data-action="del"]').addEventListener('click',()=>{ state.proj.parts.splice(i,1); renderParts(); });
+    tbody.appendChild(tr);
+  });
+}
+
+$('#btnAddRect').addEventListener('click',()=>{ state.proj.parts.push(new Part({name:'Rect '+(state.proj.parts.length+1), w:100, h:80, qty:1, rot:true})); renderParts(); });
+$('#btnAddCircle').addEventListener('click',()=>{ state.proj.parts.push(new Part({name:'Circle '+(state.proj.parts.length+1), w:100, h:100, qty:1, rot:true, shape:'circle'})); renderParts(); });
+$('#btnClearParts').addEventListener('click',()=>{ if(confirm('Remove all parts?')){ state.proj.parts.length=0; renderParts(); }});
+
+$('#csvInput').addEventListener('change', async (e)=>{
+  const file=e.target.files[0]; if(!file) return; const txt=await file.text();
+  const rows=txt.split(/\r?\n/).map(r=>r.trim()).filter(Boolean);
+  for(const r of rows){ const [name,w,h,qty,rot] = r.split(','); if(!name) continue; state.proj.parts.push(new Part({name,w:+w,h:+h,qty:+qty||1,rot:rot!=="0"})); }
+  renderParts(); e.target.value='';
+});
+
+// ------------------------------
+// Sheet + Nest settings bindings
+// ------------------------------
+['sheetW','sheetH','sheetMargin','kerf'].forEach(id=>{
+  $('#'+id).addEventListener('input',()=>{
+    state.proj.sheet.w=+$('#sheetW').value||0;
+    state.proj.sheet.h=+$('#sheetH').value||0;
+    state.proj.sheet.margin=+$('#sheetMargin').value||0;
+    state.proj.sheet.kerf=+$('#kerf').value||0;
+    resetView();
+  });
+});
+$('#grainLock').addEventListener('change',()=>{ state.proj.sheet.grain=$('#grainLock').value; });
+
+// ------------------------------
+// Nesting algorithms (prototype)
+// ------------------------------
+function makeInstances(parts){
+  const list=[]; for(const p of parts){ for(let i=0;i<p.qty;i++){ list.push({part:p, w:p.w, h:p.h}); }} return list;
+}
+function sortInstances(instances, sortBy){
+  const keyFn={area:i=>-(i.w*i.h), h:i=>-i.h, w:i=>-i.w}[sortBy]||((i)=>-(i.w*i.h));
+  instances.sort((a,b)=> keyFn(a)-keyFn(b));
+}
+
+// Shelf strategy: fill rows (shelves), start new shelf when overflow; start new sheet when height overflow
+function nestShelf(instances, sheet, kerf){
+  const placements=[]; let sheetIndex=0; let x=0,y=0,rowH=0; const W=sheet.w-2*sheet.margin, H=sheet.h-2*sheet.margin; const k=kerf;
+  for(const inst of instances){ let w=inst.w+k, h=inst.h+k;
+    // rotation allowed?
+    const allowRot = ($('#rotation').value==='90') && inst.part.rot && (sheet.grain==='none');
+    if(allowRot && w>h && w>0 && h>0 && (x+w>W) && (x+h<=W)) { [w,h]=[h,w]; inst.rot=true; } else inst.rot=false;
+    if(x+w>W){ x=0; y+=rowH; rowH=0; } // new shelf
+    if(y+h>H){ // new sheet
+      sheetIndex++; x=0; y=0; rowH=0; if(h>H||w>W) { console.warn('Part larger than sheet. Skipped:', inst.part.name); continue; }
+    }
+    placements.push(new Placement({partId:inst.part.id, x, y, w:inst.rot?h-k:w-k, h:inst.rot?w-k:h-k, rot:!!inst.rot, sheet:sheetIndex}));
+    x+=w; rowH=Math.max(rowH,h);
+  }
+  return {placements, sheets: (placements.at(-1)?.sheet ?? 0)+1 };
+}
+
+// Greedy Bottom-Left using a simple occupancy map (coarse) for demo
+function nestBottomLeft(instances, sheet, kerf){
+  const placements=[]; const W=sheet.w-2*sheet.margin, H=sheet.h-2*sheet.margin; const k=kerf;
+  let sheetIndex=0;
+  // occupancy grid: 10mm cells (coarse); reset per sheet
+  function placeOnSheet(list){
+    const cell=10; const cols=Math.floor(W/cell), rows=Math.floor(H/cell);
+    const occ=new Array(rows).fill(0).map(()=>new Array(cols).fill(false));
+    function canPlace(cx,cy,cw,ch){ if(cx+cw>cols||cy+ch>rows) return false; for(let y=cy;y<cy+ch;y++) for(let x=cx;x<cx+cw;x++) if(occ[y][x]) return false; return true; }
+    function occupy(cx,cy,cw,ch){ for(let y=cy;y<cy+ch;y++) for(let x=cx;x<cx+cw;x++) occ[y][x]=true; }
+
+    for(const inst of list){ let placed=false; const allowRot = ($('#rotation').value==='90') && inst.part.rot && (sheet.grain==='none');
+      for(let rotTry=0; rotTry<(allowRot?2:1); rotTry++){
+        const w=(rotTry?inst.h:inst.w)+k, h=(rotTry?inst.w:inst.h)+k; const cw=Math.ceil(w/cell), ch=Math.ceil(h/cell);
+        outer: for(let y=0;y<=rows-ch;y++){
+          for(let x=0;x<=cols-cw;x++){
+            if(canPlace(x,y,cw,ch)){
+              occupy(x,y,cw,ch); const px=x*cell, py=y*cell;
+              placements.push(new Placement({partId:inst.part.id, x:px, y:py, w:(rotTry?inst.h:inst.w), h:(rotTry?inst.w:inst.h), rot:!!rotTry, sheet:sheetIndex}));
+              placed=true; break outer;
+            }
+          }
+        }
+        if(placed) break;
+      }
+      if(!placed){ // new sheet
+        sheetIndex++;
+        // recurse for remaining including this one
+        const rest=list.slice(list.indexOf(inst));
+        const res=placeOnSheet(rest); sheetIndex+=res.sheets-1; return; // early end as recursion handled
+      }
+    }
+    return;
+  }
+  placeOnSheet(instances);
+  return {placements, sheets:(placements.at(-1)?.sheet ?? 0)+1};
+}
+
+function runNest(){
+  const S=state.proj.sheet; const instances=makeInstances(state.proj.parts);
+  sortInstances(instances, $('#sortBy').value);
+  let res;
+  if($('#strategy').value==='shelf') res=nestShelf(instances,S,S.kerf);
+  else res=nestBottomLeft(instances,S,S.kerf);
+  state.proj.placements=res.placements; state.sheetsCount=res.sheets; draw();
+}
+
+// ------------------------------
+// Exporters
+// ------------------------------
+function exportCSV(){
+  const lines=['sheet,part,name,x,y,w,h,rot'];
+  for(const pl of state.proj.placements){ const part=state.proj.parts.find(p=>p.id===pl.partId); lines.push([pl.sheet, part?.id||'', part?.name||'', pl.x, pl.y, pl.w, pl.h, pl.rot?1:0].join(',')); }
+  download('mini-nest-placements.csv', lines.join('\n'));
+}
+
+function exportSVG(){
+  const S=state.proj.sheet; const margin=S.margin; const sheets=state.sheetsCount; const w=S.w, h=S.h; const k=S.kerf;
+  const svgParts=[]; svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w*sheets}" height="${h}" viewBox="0 0 ${w*sheets} ${h}">`);
+  for(let s=0;s<sheets;s++){
+    const ox=s*w;
+    svgParts.push(`<rect x="${ox+0.5}" y="0.5" width="${w-1}" height="${h-1}" fill="#0a1125" stroke="#33407a"/>`);
+    for(const pl of state.proj.placements.filter(p=>p.sheet===s)){
+      const part=state.proj.parts.find(pp=>pp.id===pl.partId); if(!part) continue;
+      const x=ox+margin+pl.x, y=margin+pl.y, W=pl.w, H=pl.h;
+      svgParts.push(`<rect x="${x}" y="${y}" width="${W}" height="${H}" fill="#14214a" stroke="#6ba2ff"/>`);
+      svgParts.push(`<text x="${x+6}" y="${y+14}" font-size="12" fill="#bcd7ff">${part.name}</text>`);
+    }
+  }
+  svgParts.push('</svg>');
+  download('mini-nest-layout.svg', svgParts.join('\n'));
+}
+
+// ------------------------------
+// Save/Load
+// ------------------------------
+function saveProject(){
+  const data=JSON.stringify(state.proj, null, 2);
+  download('mini-nest-project.json', data);
+}
+function loadProjectFromText(txt){
+  try{ const obj=JSON.parse(txt); state.proj=new Project(); Object.assign(state.proj, obj); renderParts(); resetView(); draw(); }
+  catch(e){ alert('Invalid project JSON'); }
+}
+
+$('#btnSave').addEventListener('click', saveProject);
+$('#btnLoad').addEventListener('click', ()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=async ()=>{ const f=inp.files[0]; if(!f) return; const txt=await f.text(); loadProjectFromText(txt); }; inp.click(); });
+$('#btnNew').addEventListener('click', ()=>{ if(!confirm('Start a new project?')) return; state.proj=new Project(); seedDemo(); renderParts(); resetView(); draw(); });
+
+$('#btnExportCSV').addEventListener('click', exportCSV);
+$('#btnExportSVG').addEventListener('click', exportSVG);
+$('#btnNest').addEventListener('click', runNest);
+$('#btnClearPlacements').addEventListener('click', ()=>{ state.proj.placements.length=0; draw(); });
+
+// ------------------------------
+// DXF (very small beta parser for LWPOLYLINE)
+// ------------------------------
+$('#dxfInput').addEventListener('change', async (e)=>{
+  const file=e.target.files[0]; if(!file) return; const txt=await file.text(); state.dxfGeom=parseDXF_LWPolyline(txt); alert(`DXF parsed: ${state.dxfGeom.length} polylines`); e.target.value=''; });
+$('#btnAddDXFAsPart').addEventListener('click', ()=>{
+  if(!state.dxfGeom || !state.dxfGeom.length){ alert('Load a DXF first.'); return; }
+  const bb=boundOfPolylines(state.dxfGeom); const w=bb.maxX-bb.minX, h=bb.maxY-bb.minY;
+  state.proj.parts.push(new Part({name:'DXF '+(state.proj.parts.length+1), w, h, qty:1, rot:true, shape:'poly', points:state.dxfGeom[0]}));
+  renderParts();
+});
+
+function parseDXF_LWPolyline(txt){
+  const lines=txt.split(/\r?\n/); const polys=[]; let i=0; let current=[]; let inLw=false; let closed=false;
+  while(i<lines.length){ const code=lines[i++].trim(); const val=lines[i++]?.trim(); if(val===undefined) break;
+    if(code==='0' && val==='LWPOLYLINE'){ inLw=true; current=[]; closed=false; continue; }
+    if(inLw){
+      if(code==='0'){ // end entity
+        if(current.length){ if(closed && (current[0][0]!==current.at(-1)[0] || current[0][1]!==current.at(-1)[1])) current.push([...current[0]]); polys.push(current); }
+        inLw=false; current=[]; closed=false; continue; }
+      if(code==='70'){ closed = (parseInt(val)&1)===1; }
+      if(code==='10'){ const x=parseFloat(val); // next line should be 20 for y
+        const ycode=lines[i++].trim(); const yval=parseFloat(lines[i++].trim()); if(ycode!=='20') { i-=2; continue; }
+        current.push([x,yval]); }
+    }
+  }
+  return polys;
+}
+function boundOfPolylines(polys){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity; for(const poly of polys){ for(const [x,y] of poly){ if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y; } }
+  return {minX,minY,maxX,maxY};
+}
+
+// ------------------------------
+// Init
+// ------------------------------
+seedDemo(); renderParts(); resizeCanvas(); resetView(); draw();
+</script>
+</body>
+</html>
